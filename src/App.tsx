@@ -42,6 +42,26 @@ function App() {
           >
             Connect
           </Button>
+          <Button
+            onClick={async () => {
+              const res = await invoke("get_saved_dbs");
+              console.log(res);
+            }}
+          >
+            Click me to get saved dbs
+          </Button>
+
+          <Button
+            onClick={async () => {
+              const res = await invoke("save_uri", {
+                name: "local",
+                uri: "mongodb://localhost:27017",
+              });
+              console.log(res);
+            }}
+          >
+            Create db
+          </Button>
         </div>
       )}
     </div>

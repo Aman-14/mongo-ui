@@ -9,6 +9,7 @@ use std::sync::RwLock;
 use uuid;
 
 use engine::{bson::JsObjectId, js_to_bson, Collection, Db};
+mod db;
 mod engine;
 
 lazy_static! {
@@ -141,13 +142,35 @@ async fn exec_script(client_id: String, db_name: String, script: String) -> Resu
     return Ok(bson.into());
 }
 
+#[tauri::command]
+fn get_saved_dbs() -> Result<Vec<db::SavedDb>, String> {
+    let dbs = db::get_dbs();
+    let res: Result<Vec<db::SavedDb>, String> = match dbs {
+        Ok(dbs) => Ok(dbs),
+        Err(err) => {
+            println!("{}", err);
+            Err(err.to_string())
+        }
+    };
+    res
+}
+
+#[tauri::command]
+fn save_uri(name: String, uri: String) -> Result<(), ()> {
+    println!("Creating db");
+    db::create_saved_db(name, uri)
+}
+
 fn main() {
+    db::ensure_tables().unwrap();
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
             connect_db,
             greet,
             exec_script,
-            get_collection_names
+            get_collection_names,
+            get_saved_dbs,
+            save_uri
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
