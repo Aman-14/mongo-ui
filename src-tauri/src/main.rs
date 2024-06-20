@@ -6,7 +6,6 @@ use mongodb::bson::doc;
 use mongodb::{self};
 use serde_json::Value;
 use std::sync::RwLock;
-use uuid;
 
 use engine::{bson::JsObjectId, js_to_bson, Collection, Db};
 mod db;
@@ -14,6 +13,33 @@ mod engine;
 
 lazy_static! {
     static ref CLIENTS: RwLock<Vec<SyncClientEntry>> = RwLock::new(Vec::new());
+}
+
+#[derive(thiserror::Error, Debug)]
+enum Error {
+    #[error("Invalid Argument: {}", .0)]
+    InvalidArgument(String),
+
+    #[error("Something Went Wrong")]
+    SomethingWentWrong,
+
+    #[error("{0}")]
+    JsExecution(#[from] JsError),
+
+    #[error("mongo error")]
+    Mongo(#[from] mongodb::error::Error),
+
+    #[error("{0}")]
+    SqliteDatabase(#[from] rusqlite::Error),
+}
+
+impl serde::Serialize for Error {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::ser::Serializer,
+    {
+        serializer.serialize_str(self.to_string().as_str())
+    }
 }
 
 #[tauri::command]
@@ -73,12 +99,19 @@ struct ConnectDbResponse {
 }
 
 #[tauri::command]
-async fn connect_db(uri: String) -> Result<ConnectDbResponse, Error> {
-    let entry = SyncClientEntry::new(uri)?;
+async fn connect_db(uri: String, name: Option<String>) -> Result<ConnectDbResponse, Error> {
+    let entry = SyncClientEntry::new(uri.clone())?;
     let id = entry.id.clone();
     let dbs = entry.client.list_database_names(None, None)?;
+
+    if let Some(name) = name {
+        if !name.is_empty() {
+            db::create_saved_db(name, uri)?
+        }
+    }
+
     CLIENTS.write().unwrap().push(entry);
-    return Ok(ConnectDbResponse { id, dbs });
+    Ok(ConnectDbResponse { id, dbs })
 }
 
 #[tauri::command]
@@ -94,31 +127,7 @@ async fn get_collection_names(client_id: String, db_name: String) -> Result<Vec<
         .database(db_name.as_str())
         .list_collection_names(None)?;
 
-    return Ok(collections_names);
-}
-
-#[derive(thiserror::Error, Debug)]
-enum Error {
-    #[error("Invalid Argument: {}", .0)]
-    InvalidArgument(String),
-
-    #[error("Something Went Wrong")]
-    SomethingWentWrong,
-
-    #[error("{0}")]
-    JsExecutionError(#[from] JsError),
-
-    #[error("mongo error")]
-    MongoError(#[from] mongodb::error::Error),
-}
-
-impl serde::Serialize for Error {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::ser::Serializer,
-    {
-        serializer.serialize_str(self.to_string().as_str())
-    }
+    Ok(collections_names)
 }
 
 #[tauri::command]
@@ -139,7 +148,7 @@ async fn exec_script(client_id: String, db_name: String, script: String) -> Resu
 
     let js_value = context.eval(boa_engine::Source::from_bytes(script.as_str()))?;
     let bson = js_to_bson(js_value, &mut context)?;
-    return Ok(bson.into());
+    Ok(bson.into())
 }
 
 #[tauri::command]
@@ -156,13 +165,17 @@ fn get_saved_dbs() -> Result<Vec<db::SavedDb>, String> {
 }
 
 #[tauri::command]
-fn save_uri(name: String, uri: String) -> Result<(), ()> {
-    println!("Creating db");
-    db::create_saved_db(name, uri)
+fn connect_saved_db(id: i32) -> Result<ConnectDbResponse, Error> {
+    let res = db::get_db(id)?;
+    let entry = SyncClientEntry::new(res.uri)?;
+    let id = entry.id.clone();
+    let dbs = entry.client.list_database_names(None, None)?;
+    CLIENTS.write().unwrap().push(entry);
+    Ok(ConnectDbResponse { id, dbs })
 }
 
 fn main() {
-    db::ensure_tables().unwrap();
+    db::ensure_tables();
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
             connect_db,
@@ -170,7 +183,7 @@ fn main() {
             exec_script,
             get_collection_names,
             get_saved_dbs,
-            save_uri
+            connect_saved_db
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
