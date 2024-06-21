@@ -1,3 +1,4 @@
+import { cn } from "@/lib/utils";
 import { XIcon } from "lucide-react";
 import { useState } from "react";
 
@@ -19,17 +20,17 @@ const Tab = ({
   selected: boolean;
 }) => {
   const [showCloseIcon, setShowCloseIcon] = useState(false);
-  const backgroundColor = selected ? "#1e1e1e" : "#292929";
+  const backgroundColor = selected ? "#110f1b" : undefined;
 
   return (
     <button
       onClick={onSelect}
-      className="top-0 bg-stone-900 mb-0 h-10 w-24 flex items-center justify-between" //  !border-r-2
+      className={cn(
+        "top-0 mb-0 h-10 w-24 flex items-center justify-between border-t border-r border-l border-gray-500",
+        selected ? "border-b border-b-yellow-500" : "",
+      )}
       style={{
         backgroundColor,
-        border: "1px solid gray",
-        borderBottom: 0,
-        borderLeft: 0,
       }}
       onMouseEnter={() => setShowCloseIcon(true)}
       onMouseLeave={() => setShowCloseIcon(false)}
