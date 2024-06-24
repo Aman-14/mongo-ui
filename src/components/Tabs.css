@@ -17,8 +17,3 @@
 .custom-scrollbar:hover::-webkit-scrollbar-thumb {
   opacity: 1; /* Show scrollbar thumb on hover */
 }
-
-/* 
-* attempt, max attempts: 
-* unblockAt -> x min
-**/
