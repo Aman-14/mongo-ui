@@ -18,7 +18,8 @@ The integrated [Monaco Editor](https://microsoft.github.io/monaco-editor/) enhan
 
 ## Screenshots
 
-![Screenshot](public/Screenshot-mongo-ui.jpeg)
+![Screenshot](public/Screenshot-home.png)
+![Screenshot](public/Screenshot-connected.png)
 
 ## Installation
 
@@ -35,13 +36,13 @@ To get started with this project, follow these steps:
    Make sure you have Rust and Node.js installed on your system. Then, install the necessary dependencies:
 
    ```sh
-   npm install
+   yarn
    ```
 
 3. **Build and Run**:
    Build and run the application:
    ```sh
-   npm run tauri dev
+   yarn tauri dev
    ```
 
 _Crafted with love and Rust._
