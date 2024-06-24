@@ -26,11 +26,11 @@ enum Error {
     #[error("{0}")]
     JsExecution(#[from] JsError),
 
-    #[error("mongo error")]
+    #[error("Mongo Error: {0}")]
     Mongo(#[from] mongodb::error::Error),
 
-    #[error("{0}")]
-    SqliteDatabase(#[from] rusqlite::Error),
+    #[error("Sqlite Error: {0}")]
+    Sqlite(#[from] rusqlite::Error),
 }
 
 impl serde::Serialize for Error {
@@ -46,37 +46,6 @@ impl serde::Serialize for Error {
 async fn greet(name: String) -> String {
     format!("Hello, {}! You've been greeted from Rust!", name)
 }
-
-#[derive(Debug)]
-struct MongoError(mongodb::error::Error);
-impl From<mongodb::error::Error> for MongoError {
-    fn from(error: mongodb::error::Error) -> Self {
-        println!("MongoError: {}", error.kind);
-        Self(error)
-    }
-}
-impl serde::Serialize for MongoError {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::ser::Serializer,
-    {
-        serializer.serialize_str(self.0.to_string().as_str())
-    }
-}
-
-// struct ClientEntry {
-//     id: String,
-//     client: mongodb::Client,
-// }
-// impl ClientEntry {
-//     async fn new(uri: String) -> Result<Self, MongoError> {
-//         let client = mongodb::Client::with_uri_str(uri).await?;
-//         Ok(Self {
-//             id: uuid::Uuid::new_v4().to_string(),
-//             client,
-//         })
-//     }
-// }
 
 struct SyncClientEntry {
     client: mongodb::sync::Client,
@@ -152,7 +121,7 @@ async fn exec_script(client_id: String, db_name: String, script: String) -> Resu
 }
 
 #[tauri::command]
-fn get_saved_dbs() -> Result<Vec<db::SavedDb>, String> {
+async fn get_saved_dbs() -> Result<Vec<db::SavedDb>, String> {
     let dbs = db::get_dbs();
     let res: Result<Vec<db::SavedDb>, String> = match dbs {
         Ok(dbs) => Ok(dbs),
@@ -165,7 +134,7 @@ fn get_saved_dbs() -> Result<Vec<db::SavedDb>, String> {
 }
 
 #[tauri::command]
-fn connect_saved_db(id: i32) -> Result<ConnectDbResponse, Error> {
+async fn connect_saved_db(id: i32) -> Result<ConnectDbResponse, Error> {
     let res = db::get_db(id)?;
     let entry = SyncClientEntry::new(res.uri)?;
     let id = entry.id.clone();
