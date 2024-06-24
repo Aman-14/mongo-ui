@@ -1,0 +1,24 @@
+.custom-scrollbar::-webkit-scrollbar {
+  height: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  border: none;
+  background-color: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: grey;
+  border-radius: 10px; /* Rounded corners for the scrollbar */
+  opacity: 0; /* Initially hide scrollbar thumb */
+  transition: opacity 0.3s ease;
+}
+
+.custom-scrollbar:hover::-webkit-scrollbar-thumb {
+  opacity: 1; /* Show scrollbar thumb on hover */
+}
+
+/* 
+* attempt, max attempts: 
+* unblockAt -> x min
+**/

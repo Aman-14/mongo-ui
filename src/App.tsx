@@ -1,50 +1,41 @@
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { useState } from "react";
 import "./App.css";
-import { invoke } from "@tauri-apps/api";
 import { ConnectedPage } from "./components/ConnectedPage";
 import "react-folder-tree/dist/style.css";
+import { ThemeProvider } from "@/components/ThemeProvider";
+import { HomePage } from "./components/HomePage";
+import { LoadingContext } from "./context/loading";
+import { Toaster } from "./components/ui/toaster";
 
 function App() {
-  const [uri, setUri] = useState("mongodb://localhost:27017");
-  const [isConnected, setIsConnected] = useState(false);
-  const [clientId, setClientId] = useState("");
+  const [clientId, setClientId] = useState<string | undefined>(undefined);
   const [dbs, setDbs] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  async function handleConnection() {
-    const { id, dbs } = await invoke<{ id: string; dbs: string[] }>(
-      "connect_db",
-      {
-        uri,
-      },
-    );
-    setIsConnected(true);
-    setClientId(id);
+  async function onConnect({
+    clientId,
+    dbs,
+  }: {
+    clientId: string;
+    dbs: string[];
+  }) {
+    setClientId(clientId);
     setDbs(dbs);
   }
 
   return (
-    <div className="bg-gray-custom">
-      {isConnected ? (
-        <ConnectedPage dbs={dbs} clientId={clientId} />
-      ) : (
-        <div className="min-h-screen flex items-center justify-center flex-col bg-gray-custom">
-          <Input
-            className="w-3/6 bg-gray-custom placeholder:text-gray-600 border-sky-600 mb-5 text-gray-300"
-            placeholder="Paste a connection string"
-            onChange={(e) => setUri(e.target.value)}
-            value={uri}
-          />
-          <Button
-            className="bg-green-700 hover:bg-green-800"
-            onClick={handleConnection}
-          >
-            Connect
-          </Button>
+    <LoadingContext.Provider value={setLoading}>
+      <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
+        <div className={loading ? "blur-sm pointer-events-none" : ""}>
+          {clientId ? (
+            <ConnectedPage dbs={dbs} clientId={clientId} />
+          ) : (
+            <HomePage onConnect={onConnect} />
+          )}
+          <Toaster />
         </div>
-      )}
-    </div>
+      </ThemeProvider>
+    </LoadingContext.Provider>
   );
 }
 

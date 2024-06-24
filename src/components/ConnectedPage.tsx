@@ -7,6 +7,7 @@ import { Button } from "./ui/button";
 import { customStringify } from "@/lib/utils";
 import { executeScript } from "@/api";
 import { Tabs } from "./Tabs";
+import EditorTheme from "./EditorTheme";
 
 interface Props {
   dbs: string[];
@@ -33,17 +34,6 @@ export function ConnectedPage({ dbs, clientId }: Props) {
   const outputMonacoRef = useRef<Monaco>();
   const outputEditorRef = useRef<editor.IStandaloneCodeEditor>();
 
-  // useEffect(() => {
-  //   console.log(
-  //     "useEffect: editor models",
-  //     editorModels.map((m) => m.model.id),
-  //   );
-  // }, [editorModels]);
-  //
-  // useEffect(() => {
-  //   console.log("useEffect: selected model id", selectedModelId);
-  // }, [selectedModelId]);
-
   function handleEditorDidMount(
     editor: editor.IStandaloneCodeEditor,
     monaco: Monaco,
@@ -65,6 +55,7 @@ export function ConnectedPage({ dbs, clientId }: Props) {
   }
 
   function handleEditorWillMount(monaco: Monaco) {
+    monaco.editor.defineTheme("Sunburst-Custom", EditorTheme as any);
     const libSource = `
       interface Collection {
         find(): string[]
@@ -122,6 +113,104 @@ export function ConnectedPage({ dbs, clientId }: Props) {
     outputEditorRef.current!.setModel(null);
   }
 
+  async function handleRun() {
+    console.log("selectedmodelid", selectedModelId);
+    console.log(
+      "$$$$",
+      editorModels.find((m) => {
+        return m.model.id === selectedModelId;
+      })!,
+    );
+    const { dbName, model: selectedModel } = editorModels.find((m) => {
+      return m.model.id === selectedModelId;
+    })!;
+    const bsonData = await executeScript({
+      script: selectedModel.getValue(),
+      clientId,
+      dbName,
+    });
+    const value = customStringify(bsonData);
+    console.log(value);
+
+    let outputModelEntry = outputEditorModels.find((m) => {
+      m.editorId === selectedModel.id;
+    });
+    if (!outputModelEntry) {
+      console.log("Creating ouput editor");
+      const model = monacoRef.current?.editor.createModel(value, "json")!;
+      outputModelEntry = {
+        model,
+        editorId: selectedModel.id,
+      };
+      setOutputEditorModels((prev) => [...prev, outputModelEntry!]);
+    } else {
+      outputModelEntry.model.setValue(value);
+    }
+    outputEditorRef.current?.setModel(outputModelEntry.model);
+  }
+
+  function handleTabSelect(id: string) {
+    const modelEntry = editorModels.find((m) => {
+      return m.model.id === id;
+    })!;
+    setSelectedModelId(modelEntry.model.id);
+    editorRef.current!.setModel(modelEntry.model);
+
+    const outputModel = outputEditorModels.find((m) => {
+      return m.editorId === modelEntry.model.id;
+    });
+    if (!outputModel) {
+      outputEditorRef.current!.setModel(null);
+      return;
+    }
+    outputEditorRef.current!.setModel(outputModel.model);
+  }
+
+  function handleTabClose(id: string) {
+    const { model } = editorModels.find((m) => {
+      return m.model.id === id;
+    })!;
+
+    const outputModel = outputEditorModels.find((m) => {
+      return m.editorId === id;
+    });
+    if (editorModels.length === 1) {
+      setSelectedModelId(null);
+      setEditorModels([]);
+      editorRef.current!.setModel(null);
+      setOutputEditorModels([]);
+      outputEditorRef.current!.setModel(null);
+      return;
+    }
+
+    const newEditorModels = editorModels.filter((m) => {
+      return m.model.id !== id;
+    });
+    const newOutputEditorModels = outputEditorModels.filter((m) => {
+      return m.editorId !== id;
+    });
+    setEditorModels(newEditorModels);
+    setOutputEditorModels(newOutputEditorModels);
+
+    if (selectedModelId === id) {
+      const modelToSelect = newEditorModels.at(-1)!.model;
+      setSelectedModelId(modelToSelect.id);
+      editorRef.current!.setModel(modelToSelect);
+
+      const outputModelToSelect = newOutputEditorModels.find((m) => {
+        return m.editorId === modelToSelect.id;
+      });
+      if (outputModelToSelect) {
+        outputEditorRef.current!.setModel(outputModelToSelect.model);
+      } else {
+        outputEditorRef.current!.setModel(null);
+      }
+    }
+
+    model.dispose();
+    outputModel?.model.dispose();
+  }
+
   return (
     <div className="flex text-white">
       <div className="w-1/5 ">
@@ -129,49 +218,8 @@ export function ConnectedPage({ dbs, clientId }: Props) {
       </div>
       <div className="w-4/5">
         {selectedModelId ? (
-          <>
-            <Button
-              onClick={async () => {
-                console.log("selectedmodelid", selectedModelId);
-                console.log(
-                  "$$$$",
-                  editorModels.find((m) => {
-                    return m.model.id === selectedModelId;
-                  })!,
-                );
-                const { dbName, model: selectedModel } = editorModels.find(
-                  (m) => {
-                    return m.model.id === selectedModelId;
-                  },
-                )!;
-                const bsonData = await executeScript({
-                  script: selectedModel.getValue(),
-                  clientId,
-                  dbName,
-                });
-                const value = customStringify(bsonData);
-                console.log(value);
-
-                let outputModelEntry = outputEditorModels.find((m) => {
-                  m.editorId === selectedModel.id;
-                });
-                if (!outputModelEntry) {
-                  console.log("Creating ouput editor");
-                  const model = monacoRef.current?.editor.createModel(
-                    value,
-                    "json",
-                  )!;
-                  outputModelEntry = {
-                    model,
-                    editorId: selectedModel.id,
-                  };
-                  setOutputEditorModels((prev) => [...prev, outputModelEntry!]);
-                } else {
-                  outputModelEntry.model.setValue(value);
-                }
-                outputEditorRef.current?.setModel(outputModelEntry.model);
-              }}
-            >
+          <div className="flex items-center mt-5">
+            <Button className="m-1 mr-2 w-20" onClick={handleRun}>
               Run
             </Button>
             <Tabs
@@ -180,85 +228,21 @@ export function ConnectedPage({ dbs, clientId }: Props) {
                 name: m.dbName,
                 selected: m.model.id === selectedModelId,
               }))}
-              onSelect={(id: string) => {
-                const modelEntry = editorModels.find((m) => {
-                  return m.model.id === id;
-                })!;
-                setSelectedModelId(modelEntry.model.id);
-                editorRef.current!.setModel(modelEntry.model);
-
-                const outputModel = outputEditorModels.find((m) => {
-                  return m.editorId === modelEntry.model.id;
-                });
-                if (!outputModel) {
-                  outputEditorRef.current!.setModel(null);
-                  return;
-                }
-                outputEditorRef.current!.setModel(outputModel.model);
-              }}
-              onClose={(id: string) => {
-                const { model } = editorModels.find((m) => {
-                  return m.model.id === id;
-                })!;
-
-                const outputModel = outputEditorModels.find((m) => {
-                  return m.editorId === id;
-                });
-                if (editorModels.length === 1) {
-                  setSelectedModelId(null);
-                  setEditorModels([]);
-                  editorRef.current!.setModel(null);
-                  setOutputEditorModels([]);
-                  outputEditorRef.current!.setModel(null);
-                  return;
-                }
-
-                const newEditorModels = editorModels.filter((m) => {
-                  return m.model.id !== id;
-                });
-                const newOutputEditorModels = outputEditorModels.filter((m) => {
-                  return m.editorId !== id;
-                });
-                setEditorModels(newEditorModels);
-                setOutputEditorModels(newOutputEditorModels);
-
-                if (selectedModelId === id) {
-                  const modelToSelect = newEditorModels.at(-1)!.model;
-                  setSelectedModelId(modelToSelect.id);
-                  editorRef.current!.setModel(modelToSelect);
-
-                  const outputModelToSelect = newOutputEditorModels.find(
-                    (m) => {
-                      return m.editorId === modelToSelect.id;
-                    },
-                  );
-                  if (outputModelToSelect) {
-                    outputEditorRef.current!.setModel(
-                      outputModelToSelect.model,
-                    );
-                  } else {
-                    outputEditorRef.current!.setModel(null);
-                  }
-                }
-
-                model.dispose();
-                outputModel?.model.dispose();
-              }}
+              onSelect={handleTabSelect}
+              onClose={handleTabClose}
             />
-          </>
+          </div>
         ) : null}
 
         <PanelGroup
           autoSaveId="example"
           direction="vertical"
           className="!h-full overflow-hidden"
-          // className="!h-5/6"
         >
           <Panel collapsible={true} order={1}>
             <Editor
-              // height="90vh"
               defaultLanguage="javascript"
-              theme="vs-dark"
+              theme="Sunburst-Custom"
               options={{
                 minimap: { enabled: false },
                 showUnused: false,
@@ -271,15 +255,15 @@ export function ConnectedPage({ dbs, clientId }: Props) {
               }}
               onMount={handleEditorDidMount}
               beforeMount={handleEditorWillMount}
-              //      onValidate={handleEditorValidation}
+              className="border border-white-200"
             />
           </Panel>
           <ResizeHandle />
           <Panel collapsible={false} defaultSize={50} order={2}>
             <Editor
-              className="overflow-hidden"
+              className="overflow-hidden border border-white-200"
               defaultLanguage="json"
-              theme="vs-dark"
+              theme="Sunburst-Custom"
               options={{
                 minimap: { enabled: false },
                 showUnused: false,
